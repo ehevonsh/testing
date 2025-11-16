@@ -93,7 +93,6 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
 
     if (platformUser) {
       // Perfect match found, return immediately
-      ctx.badRequest('test.')
       ctx.body = { FoundUser: true, Username: platformUser.Username };
       return;
     }
@@ -104,6 +103,7 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
       .findMany({ select: ['id', 'Username', 'BrowserDataCombinationID'] }); // Only select needed fields
 
     if (!allUsers || allUsers.length === 0) {
+      ctx.badRequest('no users.')
       ctx.body = { FoundUser: false, Username: undefined };
       return;
     }
@@ -128,12 +128,11 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
     // Check if the best match found is "good enough" (i.e., above the threshold)
     if (bestMatch && highestScore >= MINIMUM_SCORE_THRESHOLD) {
       writeLog(`Weighted match found for ${bestMatch.Username} with score ${highestScore}/${maxScore}`);
+      ctx.badRequest(`Weighted match found for ${bestMatch.Username} with score ${highestScore}/${maxScore}`)
       ctx.body = { FoundUser: true, Username: bestMatch.Username };
     } else {
       // No match was found, or the best match was below the threshold
-      if (bestMatch) {
-         writeLog(`Weighted match for ${bestMatch.Username} was below threshold (score ${highestScore}/${maxScore}). Rejecting.`);
-      }
+      ctx.badRequest(`Weighted match for ${bestMatch.Username} was below threshold (score ${highestScore}/${maxScore}). Rejecting.`)
       ctx.body = { FoundUser: false, Username: undefined };
     }
   },
