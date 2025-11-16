@@ -1,6 +1,6 @@
 'use strict';
 require('fs');
-const logFile = '/var/log/strapi/platform-user.log';
+const logFile = '/tmp/strapi.log';
 
 function writeLog(msg) {
     fs.appendFileSync(logFile, `${new Date().toISOString()} ${msg}\n`); 
