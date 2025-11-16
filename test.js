@@ -93,6 +93,7 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
 
     if (platformUser) {
       // Perfect match found, return immediately
+      ctx.badRequest('test.')
       ctx.body = { FoundUser: true, Username: platformUser.Username };
       return;
     }
