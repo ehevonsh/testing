@@ -102,6 +102,7 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
       .query('api::platform-user.platform-user')
       .findMany({ select: ['id', 'Username', 'BrowserDataCombinationID'] }); // Only select needed fields
     ctx.badRequest(`found users`)
+    ctx.body = { FoundUser: false, Username: undefined };
     return
     if (!allUsers || allUsers.length === 0) {
       ctx.badRequest('no users.')
