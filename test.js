@@ -1,10 +1,4 @@
 'use strict';
-require('fs');
-const logFile = '/tmp/strapi.log';
-
-function writeLog(msg) {
-    fs.appendFileSync(logFile, `${new Date().toISOString()} ${msg}\n`); 
-}
 
 /**
  * platform-user controller
@@ -103,7 +97,6 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
       .findMany({ select: ['id', 'Username', 'BrowserDataCombinationID'] }); // Only select needed fields
 
     if (!allUsers || allUsers.length === 0) {
-      ctx.badRequest('no users.')
       ctx.body = { FoundUser: false, Username: undefined };
       return;
     }
@@ -127,10 +120,13 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
 
     // Check if the best match found is "good enough" (i.e., above the threshold)
     if (bestMatch && highestScore >= MINIMUM_SCORE_THRESHOLD) {
-      writeLog(`Weighted match found for ${bestMatch.Username} with score ${highestScore}/${maxScore}`);
+      console.log(`Weighted match found for ${bestMatch.Username} with score ${highestScore}/${maxScore}`);
       ctx.body = { FoundUser: true, Username: bestMatch.Username };
     } else {
       // No match was found, or the best match was below the threshold
+      if (bestMatch) {
+         console.log(`Weighted match for ${bestMatch.Username} was below threshold (score ${highestScore}/${maxScore}). Rejecting.`);
+      }
       ctx.body = { FoundUser: false, Username: undefined };
     }
   },
