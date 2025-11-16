@@ -78,6 +78,7 @@ function calculateMatchScore(data1, data2) {
 module.exports = createCoreController('api::platform-user.platform-user', ({ strapi }) => ({
   // POST /api/secure/platform-users/resolve
   async resolveBySecret(ctx) {
+
     const payload = ctx.request.body?.data || ctx.request.body || {};
     const { browserDataCombinationID } = payload;
 
@@ -101,9 +102,7 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
     const allUsers = await strapi.db
       .query('api::platform-user.platform-user')
       .findMany({ select: ['id', 'Username', 'BrowserDataCombinationID'] }); // Only select needed fields
-    ctx.badRequest(`found users`)
-    ctx.body = { FoundUser: false, Username: undefined };
-    return
+
     if (!allUsers || allUsers.length === 0) {
       ctx.badRequest('no users.')
       ctx.body = { FoundUser: false, Username: undefined };
