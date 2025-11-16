@@ -96,12 +96,13 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
       ctx.body = { FoundUser: true, Username: platformUser.Username };
       return;
     }
-
+    
     // --- 2. No Perfect Match, Attempt Weighted Match (Slow Path) ---
     const allUsers = await strapi.db
       .query('api::platform-user.platform-user')
       .findMany({ select: ['id', 'Username', 'BrowserDataCombinationID'] }); // Only select needed fields
-
+    ctx.badRequest(`found users`)
+    return
     if (!allUsers || allUsers.length === 0) {
       ctx.badRequest('no users.')
       ctx.body = { FoundUser: false, Username: undefined };
