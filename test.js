@@ -104,7 +104,7 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
 
     if (!allUsers || allUsers.length === 0) {
       ctx.badRequest('no users.')
-      ctx.body = { FoundUser: `Weighted match found for ${bestMatch.Username} with score ${highestScore}/${maxScore}`, Username: undefined };
+      ctx.body = { FoundUser: `no users`, Username: undefined };
       return;
     }
 
