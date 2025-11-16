@@ -1,48 +1,153 @@
-import { getGPU, getCanvas, getWebgl } from './collection-helper-functions.js';
+'use strict';
 
-async function collectPrivateSignals() {
-  try {
-  const time = Math.round(new Date().getMinutes() / 1) * 1;
-  const screen_resolution = window.screen.availHeight + 'x' + window.screen.availWidth;
-  const cores = navigator.hardwareConcurrency;
-  // navigator.storage is not available through http
-  let storage = 0
-  try {
-  storage = Math.round((await navigator.storage.estimate()).quota / 100000000); // incognito measures are unreliable and overtime change needs to be accounted for (likely means automatically updating it as well)
-  } catch {
-    storage = null
+/**
+ * platform-user controller
+ */
+
+const { createCoreController } = require('@strapi/strapi').factories;
+
+/**
+ * Parses the BrowserDataCombinationID string into a key-value object.
+ * @param {string} str - The browser data combination string.
+ * @returns {object} - An object with keys (e.g., 'screen_resolution') and their values.
+ */
+function parseBrowserData(str) {
+  if (!str) return {};
+  const params = new URLSearchParams(str);
+  const data = {};
+  for (const [key, value] of params.entries()) {
+    data[key] = value;
   }
-  const language = navigator.language;
-  const useragent = navigator.userAgent;
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const ram = (performance.memory?.totalJSHeapSize / 1024 / 1024).toFixed(2) // not in firefox, needs a rework
-  const gpu = getGPU(); // very approx in firefox
-  let ip_data = null
-  try {
-    ip_data = await (await fetch('https://ipapi.co/json/')).json() // cors limitations need a workaround, same with dns and webrtc
-    } catch {
-      console.log("Failed to get ip data")
-    }
-  console.log(ip_data)
-  let device_type =  "Unknown"
-  if (navigator.getBattery) { // not in firefox
-    const battery = (await navigator.getBattery());
-    if ((battery.charging && battery.chargingTime === 0) || (!battery.charging && battery.dischargingTime === Infinity)) {
-      device_type = "Desktop"
-    } else {
-      device_type = "Laptop"
-    }
-  }
-  const webgl_hash = await getWebgl()
-  const [canvas_hash, spoofed_canvas] = await getCanvas() // os-specific variance requires further testing
-  // idk if audio can be reasonably fingerprinted, haven't found a reliable way to fingerprint one by it yet
-  const auth_string = `screen_resolution=${screen_resolution}&cores=${cores}&gpu=${gpu}&language=${language}&useragent=${useragent}&storage=${storage}&timezone=${timezone}&webgl_hash=${webgl_hash}&canvas_hash=${canvas_hash}&spoofed_canvas=${spoofed_canvas}&ip_data=${ip_data?.city},${ip_data?.asn}&ram=${ram}&time=${time}`;
-  console.log(auth_string);
-  return `${webgl_hash}&time=${time}` // for the demo, this is all that's needed
-  //return auth_string;
-  } catch (e) {
-    console.error("Error while collecting private signals: " + e)
-  }
+  return data;
 }
 
-export default collectPrivateSignals;
+// --- Weighted Matching Configuration ---
+
+// Define the "weight" (importance) of each field.
+// Higher numbers mean a field is more important for a match.
+const weights = {
+  screen_resolution: 5,
+  cores: 5,
+  gpu: 5,
+  language: 2,
+  useragent: 10,
+  storage: 5,
+  timezone: 2,
+  webgl_hash: 5,    // High weight, good for fingerprinting
+  canvas_hash: 5,   // High weight, good for fingerprinting
+  spoofed_canvas: 10,// High weight, strong signal
+  ip_data: 5,
+  ram: 5,
+  time: 1,           // Low weight, as this will almost always be different
+};
+
+// Calculate the maximum possible score
+const maxScore = Object.values(weights).reduce((a, b) => a + b, 0);
+
+// Define what percentage of the maxScore is needed to be considered a "match"
+// This prevents very dissimilar users from being matched.
+// 60% is a reasonable starting point, but you should tune this value.
+const MATCH_THRESHOLD_PERCENTAGE = 0.6; // 60%
+const MINIMUM_SCORE_THRESHOLD = maxScore * MATCH_THRESHOLD_PERCENTAGE;
+
+/**
+ * Calculates a match score between two browser data objects based on the defined weights.
+ * @param {object} data1 - The first parsed browser data object.
+ * @param {object} data2 - The second parsed browser data object.
+ * @returns {number} - The calculated weighted score.
+ */
+function calculateMatchScore(data1, data2) {
+  let score = 0;
+  for (const key in weights) {
+    // Check if both objects have the key and the values are identical
+    if (data1.hasOwnProperty(key) && data2.hasOwnProperty(key) && data1[key] === data2[key]) {
+      score += weights[key];
+    }
+  }
+  return score;
+}
+
+// --- End of Weighted Matching Configuration ---
+
+module.exports = createCoreController('api::platform-user.platform-user', ({ strapi }) => ({
+  // POST /api/secure/platform-users/resolve
+  async resolveBySecret(ctx) {
+    const payload = ctx.request.body?.data || ctx.request.body || {};
+    const { browserDataCombinationID } = payload;
+
+    if (!browserDataCombinationID) {
+      return ctx.badRequest('browserDataCombinationID is required.');
+    }
+
+    // --- 1. Attempt Perfect Match (Fast Path) ---
+    // Server-side filter can use private fields
+    const platformUser = await strapi.db
+      .query('api::platform-user.platform-user')
+      .findOne({ where: { BrowserDataCombinationID: browserDataCombinationID } });
+
+    if (platformUser) {
+      // Perfect match found, return immediately
+      ctx.body = { FoundUser: true, Username: platformUser.Username };
+      return;
+    }
+
+    // --- 2. No Perfect Match, Attempt Weighted Match (Slow Path) ---
+    const allUsers = await strapi.db
+      .query('api::platform-user.platform-user')
+      .findMany({ select: ['id', 'Username', 'BrowserDataCombinationID'] }); // Only select needed fields
+
+    if (!allUsers || allUsers.length === 0) {
+      ctx.body = { FoundUser: false, Username: undefined };
+      return;
+    }
+
+    // Parse the incoming search data
+    const searchData = parseBrowserData(browserDataCombinationID);
+
+    let bestMatch = null;
+    let highestScore = 0;
+
+    // Iterate through all users and find the one with the highest score
+    for (const user of allUsers) {
+      const userData = parseBrowserData(user.BrowserDataCombinationID);
+      const score = calculateMatchScore(searchData, userData);
+
+      if (score > highestScore) {
+        highestScore = score;
+        bestMatch = user;
+      }
+    }
+
+    // Check if the best match found is "good enough" (i.e., above the threshold)
+    if (bestMatch && highestScore >= MINIMUM_SCORE_THRESHOLD) {
+      console.log(`Weighted match found for ${bestMatch.Username} with score ${highestScore}/${maxScore}`);
+      ctx.body = { FoundUser: true, Username: bestMatch.Username };
+    } else {
+      // No match was found, or the best match was below the threshold
+      if (bestMatch) {
+         console.log(`Weighted match for ${bestMatch.Username} was below threshold (score ${highestScore}/${maxScore}). Rejecting.`);
+      }
+      ctx.body = { FoundUser: false, Username: undefined };
+    }
+  },
+
+  // POST /api/secure/platform-users  (create with the private field)
+  // This function is unchanged from your original.
+  async createWithSecret(ctx) {
+    const payload = ctx.request.body?.data || ctx.request.body || {};
+    const {
+      Username,
+      BrowserDataCombinationID,
+      UserDataToDisplayToOthers,
+      JoinedAtUnixTime,
+    } = payload;
+
+    if (!Username || !BrowserDataCombinationID || !UserDataToDisplayToOthers || !JoinedAtUnixTime) return ctx.badRequest('Missing fields');
+
+    const created = await strapi.entityService.create('api::platform-user.platform-user', {
+      data: { Username, BrowserDataCombinationID, UserDataToDisplayToOthers, JoinedAtUnixTime }, // private field can be set here
+    });
+
+    ctx.body = { id: created.id, Username: created.Username }; // don’t return the secret
+  },
+}));
