@@ -104,7 +104,7 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
 
     if (!allUsers || allUsers.length === 0) {
       ctx.badRequest('no users.')
-      ctx.body = { FoundUser: true, Username: `no users` };
+      ctx.body = { FoundUser: false, Username: undefined };
       return;
     }
 
