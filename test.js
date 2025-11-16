@@ -1,4 +1,10 @@
 'use strict';
+require('fs');
+const logFile = '/var/log/strapi/platform-user.log';
+
+function writeLog(msg) {
+    fs.appendFileSync(logFile, `${new Date().toISOString()} ${msg}\n`); 
+}
 
 /**
  * platform-user controller
@@ -120,12 +126,12 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
 
     // Check if the best match found is "good enough" (i.e., above the threshold)
     if (bestMatch && highestScore >= MINIMUM_SCORE_THRESHOLD) {
-      strapi.log.info(`Weighted match found for ${bestMatch.Username} with score ${highestScore}/${maxScore}`);
+      writeLog(`Weighted match found for ${bestMatch.Username} with score ${highestScore}/${maxScore}`);
       ctx.body = { FoundUser: true, Username: bestMatch.Username };
     } else {
       // No match was found, or the best match was below the threshold
       if (bestMatch) {
-         strapi.log.info(`Weighted match for ${bestMatch.Username} was below threshold (score ${highestScore}/${maxScore}). Rejecting.`);
+         writeLog(`Weighted match for ${bestMatch.Username} was below threshold (score ${highestScore}/${maxScore}). Rejecting.`);
       }
       ctx.body = { FoundUser: false, Username: undefined };
     }
