@@ -1,4 +1,3 @@
-//post.js
 'use strict';
 
 /**
