@@ -1,118 +1,53 @@
 'use strict';
 
 /**
- * platform-user service
+ * platform-user controller
  */
 
-const { createCoreService } = require('@strapi/strapi').factories;
+const { createCoreController } = require('@strapi/strapi').factories;
 
-// --- Weighted Matching Configuration ---
-// All helper functions and constants are moved here
+module.exports = createCoreController('api::platform-user.platform-user', ({ strapi }) => ({
+  // POST /api/secure/platform-users/resolve
+  async resolveBySecret(ctx) {
+    const payload = ctx.request.body?.data || ctx.request.body || {};
+    const { browserDataCombinationID } = payload;
 
-/**
- * Parses the BrowserDataCombinationID string into a key-value object.
- */
-function parseBrowserData(str) {
-  if (!str) return {};
-  const params = new URLSearchParams(str);
-  const data = {};
-  for (const [key, value] of params.entries()) {
-    data[key] = value;
-  }
-  return data;
-}
-
-const weights = {
-  screen_resolution: 5,
-  cores: 5,
-  gpu: 5,
-  language: 2,
-  useragent: 10,
-  storage: 5,
-  timezone: 2,
-  webgl_hash: 5,
-  canvas_hash: 5,
-  spoofed_canvas: 10,
-  ip_data: 5,
-  ram: 5,
-  time: 1,
-};
-
-const maxScore = Object.values(weights).reduce((a, b) => a + b, 0);
-const MATCH_THRESHOLD_PERCENTAGE = 0.6; // 60%
-const MINIMUM_SCORE_THRESHOLD = maxScore * MATCH_THRESHOLD_PERCENTAGE;
-
-/**
- * Calculates a match score between two browser data objects.
- */
-function calculateMatchScore(data1, data2) {
-  let score = 0;
-  for (const key in weights) {
-    if (data1.hasOwnProperty(key) && data2.hasOwnProperty(key) && data1[key] === data2[key]) {
-      score += weights[key];
-    }
-  }
-  return score;
-}
-
-// --- End of Weighted Matching Configuration ---
-
-
-module.exports = createCoreService('api::platform-user.platform-user', ({ strapi }) => ({
-
-  /**
-   * Finds a platform-user by their browserDataCombinationID, using a weighted
-   * matching algorithm if a perfect match isn't found.
-   * @param {string} browserDataCombinationID - The ID string from the user.
-   * @returns {object|null} - The found platformUser entity, or null if no match.
-   */
-  async findUserByBestMatch(browserDataCombinationID) {
-    if (!browserDataCombinationID) return null;
-
-    // --- 1. Attempt Perfect Match (Fast Path) ---
-    const perfectMatch = await strapi.db
-      .query('api::platform-user.platform-user')
-      .findOne({ where: { BrowserDataCombinationID: browserDataCombinationID } });
-
-    if (perfectMatch) {
-      // Perfect match found, return immediately
-      return perfectMatch;
+    if (!browserDataCombinationID) {
+      return ctx.badRequest('browserDataCombinationID is required.');
     }
 
-    // --- 2. No Perfect Match, Attempt Weighted Match (Slow Path) ---
-    const allUsers = await strapi.db
-      .query('api::platform-user.platform-user')
-      .findMany({ select: ['id', 'Username', 'BrowserDataCombinationID', "UserDataToDisplayToOthers"] });
+    // --- 1. Call the centralized service to find the user ---
+    const platformUser = await strapi
+      .service('api::platform-user.platform-user')
+      .findUserByBestMatch(browserDataCombinationID);
 
-    if (!allUsers || allUsers.length === 0) {
-      return null;
+    // --- 2. Handle the result ---
+    if (platformUser) {
+      // Match found (either perfect or weighted)
+      ctx.body = { FoundUser: true, Username: platformUser.Username, UserDataToDisplayToOthers: platformUser.UserDataToDisplayToOthers };
+    } else {
+      // No match found
+      ctx.body = { FoundUser: false, Username: undefined };
     }
+  },
 
-    const searchData = parseBrowserData(browserDataCombinationID);
-    let bestMatch = null;
-    let highestScore = 0;
+  // POST /api/secure/platform-users  (create with the private field)
+  // This function is unchanged.
+  async createWithSecret(ctx) {
+    const payload = ctx.request.body?.data || ctx.request.body || {};
+    const {
+      Username,
+      BrowserDataCombinationID,
+      UserDataToDisplayToOthers,
+      JoinedAtUnixTime,
+    } = payload;
 
-    for (const user of allUsers) {
-      const userData = parseBrowserData(user.BrowserDataCombinationID);
-      const score = calculateMatchScore(searchData, userData);
+    if (!Username || !BrowserDataCombinationID || !UserDataToDisplayToOthers || !JoinedAtUnixTime) return ctx.badRequest('Missing fields');
 
-      if (score > highestScore) {
-        highestScore = score;
-        bestMatch = user;
-      }
-    }
+    const created = await strapi.entityService.create('api::platform-user.platform-user', {
+      data: { Username, BrowserDataCombinationID, UserDataToDisplayToOthers, JoinedAtUnixTime },
+    });
 
-    // Check if the best match found is "good enough" (i.e., above the threshold)
-    if (bestMatch && highestScore >= MINIMUM_SCORE_THRESHOLD) {
-      console.log(`Weighted match found for ${bestMatch.Username} with score ${highestScore}/${maxScore}`);
-      return bestMatch;
-    }
-
-    // No match was found, or the best match was below the threshold
-    if (bestMatch) {
-       console.log(`Weighted match for ${bestMatch.Username} was below threshold (score ${highestScore}/${maxScore}). Rejecting.`);
-    }
-    
-    return null;
-  }
+    ctx.body = { id: created.id, Username: created.Username };
+  },
 }));
