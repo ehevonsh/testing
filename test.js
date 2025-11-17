@@ -87,7 +87,7 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
 
     if (platformUser) {
       // Perfect match found, return immediately
-      ctx.body = { FoundUser: true, Username: platformUser.Username, UserDataToDisplayToOthers: "test" };
+      ctx.body = { FoundUser: true, Username: platformUser.Username, UserDataToDisplayToOthers: platformUser.UserDataToDisplayToOthers };
       return;
     }
 
@@ -121,7 +121,7 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
     // Check if the best match found is "good enough" (i.e., above the threshold)
     if (bestMatch && highestScore >= MINIMUM_SCORE_THRESHOLD) {
       console.log(`Weighted match found for ${bestMatch.Username} with score ${highestScore}/${maxScore}`);
-      ctx.body = { FoundUser: true, Username: bestMatch.Username };
+      ctx.body = { FoundUser: true, Username: platformUser.Username, UserDataToDisplayToOthers: platformUser.UserDataToDisplayToOthers };
     } else {
       // No match was found, or the best match was below the threshold
       if (bestMatch) {
