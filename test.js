@@ -87,14 +87,14 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
 
     if (platformUser) {
       // Perfect match found, return immediately
-      ctx.body = { FoundUser: true, Username: platformUser.Username, Test: JSON.stringify(platformUser) };
+      ctx.body = { FoundUser: true, Username: platformUser.Username, UserDataToDisplayToOthers: platformUser.UserDataToDisplayToOthers };
       return;
     }
 
     // --- 2. No Perfect Match, Attempt Weighted Match (Slow Path) ---
     const allUsers = await strapi.db
       .query('api::platform-user.platform-user')
-      .findMany({ select: ['id', 'Username', 'BrowserDataCombinationID'] }); // Only select needed fields
+      .findMany({ select: ['id', 'Username', 'BrowserDataCombinationID', "UserDataToDisplayToOthers"] });
 
     if (!allUsers || allUsers.length === 0) {
       ctx.body = { FoundUser: false, Username: undefined };
@@ -121,7 +121,7 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
     // Check if the best match found is "good enough" (i.e., above the threshold)
     if (bestMatch && highestScore >= MINIMUM_SCORE_THRESHOLD) {
       console.log(`Weighted match found for ${bestMatch.Username} with score ${highestScore}/${maxScore}`);
-      ctx.body = { FoundUser: true, Username: platformUser.Username, Test: JSON.stringify(platformUser) };
+      ctx.body = { FoundUser: true, Username: bestMatch.Username, UserDataToDisplayToOthers: bestMatch.UserDataToDisplayToOthers };
     } else {
       // No match was found, or the best match was below the threshold
       if (bestMatch) {
