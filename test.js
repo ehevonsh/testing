@@ -1,3 +1,4 @@
+//post.js
 'use strict';
 
 /**
@@ -16,19 +17,14 @@ module.exports = createCoreController('api::post.post', ({ strapi }) => ({
       return ctx.badRequest('browserDataCombinationID and post are required.');
     }
 
-    // --- 1. Find PlatformUser using the best match system ---
-    // This single line replaces the old exact-match query
-    const platformUser = await strapi
-      .service('api::platform-user.platform-user')
-      .findUserByBestMatch(browserDataCombinationID);
+    // Find PlatformUser by private field (server-side filtering is allowed)
+    const platformUser = await strapi.db
+      .query('api::platform-user.platform-user')
+      .findOne({ where: { BrowserDataCombinationID: browserDataCombinationID } });
 
-    // --- 2. Check if a user was found (perfect or weighted) ---
-    if (!platformUser) {
-      // No user matched the ID, even with weighted scoring
-      return ctx.unauthorized('Invalid or unmatched BrowserDataCombinationID.');
-    }
+    if (!platformUser) return ctx.unauthorized('Invalid BrowserDataCombinationID.');
 
-    // --- 3. Create Post linked to the found PlatformUser ---
+    // Create Post linked to that PlatformUser
     const created = await strapi.entityService.create('api::post.post', {
       data: { ...post, platform_user: platformUser.id },
     });
