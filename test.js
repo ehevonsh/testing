@@ -87,7 +87,7 @@ module.exports = createCoreController('api::platform-user.platform-user', ({ str
 
     if (platformUser) {
       // Perfect match found, return immediately
-      ctx.body = { FoundUser: true, Username: platformUser.Username, UserDataToDisplayToOthers: platformUser.UserDataToDisplayToOthers };
+      ctx.body = { FoundUser: true, Username: platformUser.Username, UserDataToDisplayToOthers: "test" };
       return;
     }
 
