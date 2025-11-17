@@ -30,4 +30,4 @@ module.exports = createCoreController('api::post.post', ({ strapi }) => ({
 
     ctx.body = created;
   },
-}));
+})); 
