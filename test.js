@@ -30,12 +30,12 @@ const weights = {
   useragent: 10,
   storage: 1,
   timezone: 2,
-  device_type: 5,
+  device_type: 2,
   webgl_hash: 3,
   canvas_hash: 10,
   spoofed_canvas: 10,
   ip_data: 5,
-  ram: 3,
+  ram: 1,
   time: 0,
 };
 
