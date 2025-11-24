@@ -39,7 +39,7 @@ const weights = {
 };
 
 const maxScore = Object.values(weights).reduce((a, b) => a + b, 0);
-const MATCH_THRESHOLD_PERCENTAGE = 0.6; // 60%
+const MATCH_THRESHOLD_PERCENTAGE = 0.7; // 70%
 const MINIMUM_SCORE_THRESHOLD = maxScore * MATCH_THRESHOLD_PERCENTAGE;
 
 /**
