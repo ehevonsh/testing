@@ -24,23 +24,23 @@ function parseBrowserData(str) {
 
 const weights = {
   screen_resolution: 5,
-  cores: 7,
-  gpu: 10,
+  cores: 5,
+  gpu: 5,
   language: 3,
-  useragent: 10,
+  useragent: 7,
   storage: 1,
   timezone: 3,
   device_type: 3,
   webgl_hash: 3,
-  canvas_hash: 7,
-  spoofed_canvas: 10,
+  canvas_hash: 5,
+  spoofed_canvas: 5,
   ip_data: 5,
   ram: 1,
   time: 0,
 };
 
 const maxScore = Object.values(weights).reduce((a, b) => a + b, 0);
-const MATCH_THRESHOLD_PERCENTAGE = 0.7; // 70%
+const MATCH_THRESHOLD_PERCENTAGE = 0.75; // 70%
 const MINIMUM_SCORE_THRESHOLD = maxScore * MATCH_THRESHOLD_PERCENTAGE;
 
 /**
